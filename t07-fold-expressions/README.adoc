@@ -1,0 +1,124 @@
+= Семинар XI
+:icons: font
+:table-caption!:
+:example-caption!:
+:source-highlighter: highlightjs
+:revealjs_hash: true
+:customcss: https://gistcdn.githack.com/fedochet/4ee0f4a2224ecd29a961082a0c63c020/raw/18c107982aba90bb94194c0ac3a8a5ca9bad6782/asciidoc_revealjs_custom_style.css
+:revealjs_theme: blood
+:stylesheet: main.css
+
+== сразу задачка
+
+* напишем `all`, `any`:
+* функции принимают произвольное число аргументов, приводимых к bool
+* возвращают bool — результат применения `&&` / `||` ко всем элементам
+** fold expression, без рекурсии
+
+== tuple
+
+Обобщение std::pair
+[source, cpp]
+----
+using tuple_t = std::tuple<int, std::string, char, std::vector<int>>;
+tuple_t tp{42, "foo", 'a', {24}};
+
+// access
+std::string& s = std::get<1>(tp);
+----
+
+Очень часто хранит аргументы для какого-то функтора (в коде с шаблонами, `std::bind` и др.)
+
+=== tuple + variadic templates
+
+* `Args...` -> `Tuple`: через `std::forward_as_tuple`
+* `Tuple` -> `Args...`:
+** нужно: `std::get<i>(tp)...` для `0 <= i < size_of_tuple(tp)`
+** можно сделать переход `Tuple` -> `Tuple, I...` -> `Args...` (== `Tuple<I>...`)
+** => нужна constexpr-последовательность size_t'ов — это `std::make_index_sequence<N>`
+
+=== еще задачка
+
+* сделаем `for_each` — функция принимает tuple и функтор
+* возвращает void
+* последовательно вызывает функтор на элементах
+** fold expression, без рекурсии
+** используем make_index_sequence
+
+== Тип возвращаемого значения шаблонной функции
+
+Актуально, если тип зависит от входных параметров:
+
+[source, cpp]
+----
+// trailing return type
+template <class T, class U>
+auto foo(T&& t, U&& u) -> decltype(t + u) {
+    return t + u;
+}
+
+// or return type deduction
+template <class T, class U>
+decltype(auto) bar(T&& t, U&& u) {
+    return t + u;
+}
+----
+
+== Задачки
+
+Весь код должен жить в пространстве имён cls11
+
+== tuple_utils [каждый пункт — 0.5 балла]
+
+* `at_many`: функция принимает ключ и произвольное число контейнеров
+* возвращает tuple из значений по этому ключу
+
+[source, cpp]
+----
+std::map<std::string, int> m1 = {{"hello", 1}, {"world", 2}};
+std::map<std::string, std::string> m2 = {{"hello", "nothing"}};
+
+assert(
+    cls11::at_many("hello", m1, m2, m1)
+    ==
+    std::make_tuple(1, "nothing", 1)
+);
+----
+
+ifdef::backend-revealjs[=== !]
+
+* `transformElements` — функция принимает tuple и функтор
+* результат — новый tuple, и `newTuple<i>`:
+** равен `tuple<i>`, если функтор не применим к `tuple<i>` (в смысле типов)
+** иначе равен `func(tuple<i>)`
+** NB: тип элемента может поменяться из-за применения функтора
+
+ifdef::backend-revealjs[=== !]
+
+* `apply` — функция принимает функтор и tuple
+* результат — это вызов функтора на элементах кортежа
+** (всех сразу, переданных в один вызов)
+** аргументы передаются идеально
+
+== join
+
+Реализуйте функцию join — принимает один или больше функторов и
+возвращает функтор, который умеет применять оба эти функтора (по отдельности)
+
+[source, cpp]
+----
+auto both = cls11::join(
+    [](std::string const& s) { return "it's a string"s; },
+    [](std::pair<int, int> const& p) { return "it's a pair"s; }
+);
+
+// two different strings concatenated
+both("string") + both(std::pair(1, 2));
+----
+
+ifdef::backend-revealjs[=== !]
+
+* такой функтор удобно использовать в https://en.cppreference.com/w/cpp/utility/variant/visit[std::visit]
+** когда есть `std::variant<Type1, Type2, Type3>`
+** делаем в коде `Visitor` с `operator()(Type1)`, `operator()(Type2)`, ...
+** используем `std::visit` — он применит нужную перегрузку визитора на вариант
